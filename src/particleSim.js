@@ -37,16 +37,16 @@ export async function initSimulation(renderer, particlesPerAxis) {
     const WIDTH = particlesPerAxis;
     const HEIGHT = particlesPerAxis;
 
-    const gpuCompute = new GPUComputationRenderer(WIDTH, HEIGHT, renderer);
+    const gpuCompute = new GPUComputationRenderer(WIDTH, HEIGHT, renderer); // Renderer for textures
 
-    const posVelTexture = gpuCompute.createTexture();
-    const densityTexture = gpuCompute.createTexture();
+    const posVelTexture = gpuCompute.createTexture(); // create position / velocity texture
+    const densityTexture = gpuCompute.createTexture(); // create density texture
 
     // Initial layout: centered grid, spaced to fit inside ~80% of the domain
     // so it holds together under gravity instead of spilling past the bounds.
-    const pvData = posVelTexture.image.data;
-    const spacing = (BOUNDS * 2 * 0.8) / particlesPerAxis;
-    const half = particlesPerAxis / 2;
+    const pvData = posVelTexture.image.data; // get texture location as reference variable
+    const spacing = (BOUNDS * 2 * 0.8) / particlesPerAxis; // spacing of the boundary only to 80%
+    const half = particlesPerAxis / 2; // get half of the particles per axis for centering
     let i = 0;
     for (let y = 0; y < HEIGHT; y++) {
         for (let x = 0; x < WIDTH; x++) {
@@ -60,7 +60,7 @@ export async function initSimulation(renderer, particlesPerAxis) {
     }
 
 
-    // Seed with restDensity so the very first frame (before density has actually
+    // Seed with computed resting density so the very first frame (before density has actually
     // been computed from positions) starts from a sane value, not zero.
     const density = computeRestDensity(spacing, H, MASS);
     const densityData = densityTexture.image.data;
@@ -68,8 +68,8 @@ export async function initSimulation(renderer, particlesPerAxis) {
         densityData[d * 4] = density;
     }
 
-    let densitySrc = (await import('./density.glsl?raw')).default;
-    let posVelSrc = (await import('./posvel.glsl?raw')).default;
+    let densitySrc = (await import('./density.glsl?raw')).default; // import the density fragment shader
+    let posVelSrc = (await import('./posvel.glsl?raw')).default; // import the position velocity fragment shader
 
     // Bake grid size in as compile-time constants (GLSL loop bounds must be constant)
     densitySrc = densitySrc.replace(/PARTICLES_WIDTH/g, WIDTH).replace(/PARTICLES_HEIGHT/g, HEIGHT);

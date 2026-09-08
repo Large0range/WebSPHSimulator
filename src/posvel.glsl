@@ -54,7 +54,7 @@ void main() {
     pos += vel * dt;
 
     if (pos.x < -bounds) { pos.x = -bounds; vel.x *= -0.5; vel.y *= 0.9; }
-    if (pos.x >  bounds) { pos.x =  bounds; vel.x *= -0.5; }
+    if (pos.x >  bounds) { pos.x =  bounds; vel.x *= -0.5; vel.y *= 0.9; }
     if (pos.y < -bounds) { pos.y = -bounds; vel.y *= -0.5; }
     if (pos.y >  bounds) { pos.y =  bounds; vel.y *= -0.5; }
 
