@@ -1,13 +1,19 @@
 import * as THREE from 'three';
 
-const restDensity = 0.0109;
-const stiffness = 100;
-const h = 20;
-const mass = 1;
-const viscosity = 60; // tune this
+const restDensity = 0.0;
+const stiffness = 10;
+export const smoothingRadius = 40;
+const mass = 100;
+const viscosity = 0; // tune this
 
 
-const densityConstant = 4 / (Math.PI * Math.pow(h, 8));
+//const densityConstant = 4 / (Math.PI * Math.pow(h, 8));
+
+function SmoothingKernel(radius, distance) {
+    let volume = Math.PI * Math.pow(radius, 8) / 4;
+    let value = Math.max(0, radius * radius - distance * distance);
+    return value * value * value / volume;
+}
 
 export class Particle {
     constructor(x, y) {
@@ -20,67 +26,84 @@ export class Particle {
     }
 }
 
-export function createParticles() {
+export function calculateBlock(x, y) {
+    return [Math.floor(x / smoothingRadius), Math.floor(y / smoothingRadius)]
+}
+
+export function createBlocks(width, height, particles) {
+    const blocks = [];
+    for (let i = 0; i < width / smoothingRadius; i++) {
+        blocks.push([]);
+        for (let j = 0; j < height / smoothingRadius; j++) {
+            blocks[i].push([]);
+        }
+    }
+
+    for (const p of particles) {
+        let x = p.position.x;
+        let y = p.position.y;
+        blocks[Math.floor(x / smoothingRadius)][Math.floor(y / smoothingRadius)].push(p);
+    }
+
+    return blocks;
+}
+
+export function createParticles(width, height, count) {
     const particles = [];
     const spacing = 10;
 
-    for (let y = -10; y < 10; y++) {
-        for (let x = -10; x < 10; x++) {
-            particles.push(
-                new Particle(
-                    x * spacing,
-                    y * spacing
-                )
-            );
-        }
+    for (let i = 0; i < count; i++) {
+        let x = Math.random() * width;
+        let y = Math.random() * height;
+        let p = new Particle(x, y);
+        particles.push(p);
     }
 
     return particles;
 }
 
+export function calculateDensity(x, y, particles, blocks) {
+    let density = 0;
 
-export function calculatePressure(particles) {
-    for (const p of particles) {
-        p.pressure = stiffness * (p.density - restDensity);
+    let checkingBlocks = [];
+    
+    let block = calculateBlock(x, y);
+    let blockX = block[0];
+    let blockY = block[1];
+
+    console.log(blockX, blockY);
+    //console.log(block, x, y, blocks[block[0]][block[1]]);
+
+    //append all blocks immedately next to the innerblock
+    if (blockX != 0 && blockY != 0 && blockX != blocks.length-1) {
+        checkingBlocks.push(blocks[blockX-1][blockY-1]);
+        checkingBlocks.push(blocks[blockX+0][blockY-1]);
+        checkingBlocks.push(blocks[blockX+1][blockY-1]);
+
+        checkingBlocks.push(blocks[blockX-1][blockY+0]);
+        checkingBlocks.push(blocks[blockX+0][blockY+0]);
+        checkingBlocks.push(blocks[blockX+1][blockY+0]);
+
+        checkingBlocks.push(blocks[blockX-1][blockY+1]);
+        checkingBlocks.push(blocks[blockX+0][blockY+1]);
+        checkingBlocks.push(blocks[blockX+1][blockY+1]);
+    } else {
+        checkingBlocks.push(blocks[blockX][blockY]);
     }
-}
+    checkingBlocks = checkingBlocks.flat();
+    console.log(checkingBlocks);
 
-export function calculateDensity(particles) {
-    for (const p of particles) {
-        p.density = 0;
+    if (checkingBlocks.length == 1) return 0;
 
-        for (const q of particles) {
-            const dx = p.position.x - q.position.x;
-            const dy = p.position.y - q.position.y;
-
-            const r2 = dx * dx + dy * dy;
-
-            if (r2 < h * h) {
-                const value = h * h - r2;
-
-                p.density +=
-                    mass *
-                    densityConstant *
-                    value * value * value;
-            }
-        }
+    for (const p of checkingBlocks) {
+        let distance = (new THREE.Vector2(x,y).distanceTo(p.position));
+        let influence = SmoothingKernel(smoothingRadius, distance);
+        density += mass * influence;
     }
+
+    return density;
 }
 
-
-
-function viscosityLaplacian(r) {
-    if (r >= h || r <= 0) return 0;
-    return 45 / (Math.PI * Math.pow(h, 6)) * (h - r);
-}
-
-
-function pressureGradient(r) {
-    if (r >= h || r <= 0) return 0;
-
-    return -30 / (Math.PI * Math.pow(h, 5))
-        * Math.pow(h - r, 2);
-}
 
 export function integrate(dt, particles) {
     for (const p of particles) {
@@ -104,6 +127,7 @@ export function constrainParticles(particles) {
         if (p.position.x > 100) {
             p.position.x = 100;
             p.velocity.x *= -0.5;
+            p.velocity.y *= 0.9; // friction along the wall
         }
 
         if (p.position.y < -100) {
@@ -114,45 +138,6 @@ export function constrainParticles(particles) {
         if (p.position.y > 100) {
             p.position.y = 100;
             p.velocity.y *= -0.5;
-        }
-    }
-}
-
-
-export function calculateForces(particles) {
-    for (const p of particles) {
-        // gravity
-        p.force.set(0, -9.8 * p.density);
-
-        for (const q of particles) {
-            if (p === q) continue;
-
-            const dx = p.position.x - q.position.x;
-            const dy = p.position.y - q.position.y;
-
-            const r = Math.sqrt(dx * dx + dy * dy);
-
-            if (r >= h || r <= 0) continue;
-
-            const nx = dx / r;
-            const ny = dy / r;
-
-            const gradient = pressureGradient(r);
-
-            const pressureForce =
-                -mass *
-                (p.pressure + q.pressure) /
-                (2 * q.density) *
-                gradient;
-
-            p.force.x += pressureForce * nx;
-            p.force.y += pressureForce * ny;
-
-            const lap = viscosityLaplacian(r);
-            const visc = viscosity * mass * lap / q.density;
-
-            p.force.x += visc * (q.velocity.x - p.velocity.x);
-            p.force.y += visc * (q.velocity.y - p.velocity.y);
         }
     }
 }
