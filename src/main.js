@@ -1,8 +1,10 @@
 import * as THREE from 'three'
-import { constrainParticles, calculateDensity, calculatePressure, createParticles, calculateForces, integrate } from './particle';
+import { calculateBlock, createParticles, constrainParticles, integrate, calculateDensity, smoothingRadius, createBlocks } from './particle';
+import { EffectComposer, RenderPass, ShaderPass } from 'three/examples/jsm/Addons.js';
 
 
-const particles = createParticles();
+const particles = createParticles(1920, 840, 100);
+const blocks = createBlocks(1920, 840, particles);
 const aspect = window.innerWidth / window.innerHeight;
 
 const scene = new THREE.Scene();
@@ -22,7 +24,7 @@ const circle = new THREE.InstancedMesh( geometry, material, particles.length);
 
 const dummy = new THREE.Object3D();
 
-for (let i = 0 ; i < particles.length; i++) {
+/*for (let i = 0 ; i < particles.length; i++) {
     dummy.position.set(
         particles[i].position.x,
         particles[i].position.y,
@@ -32,32 +34,85 @@ for (let i = 0 ; i < particles.length; i++) {
     dummy.updateMatrix();
 
     circle.setMatrixAt(i, dummy.matrix);
-}
+}*/
 
 scene.add(circle);
 
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
 
-calculateDensity(particles);
+// 4. Define your Custom Fragment Shader Effect
+const MyCustomShader = {
+  uniforms: {
+    // tDiffuse is automatically populated with the rendered scene texture
+    tDiffuse: { value: null }, 
+    tDense: {value: null},
+    particleCount: { value: particles.length }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tDense;
+    uniform int particleCount;
+    varying vec2 vUv;
 
-const h = 20;
-const r = 10;
-const densityConstant = 4 / (Math.PI * Math.pow(h, 8));
+    
+    
+    void main() {
+      // Sample the original rendered scene pixel color
+      vec4 texColor = texture2D(tDiffuse, vUv);
+      vec4 density = texture2D(tDense, vUv);
+      vec4 finalColor = vec4(1,0,0,1);//mix(texColor, vec4(1.0, 0.0, 0.0, 1.0), effect * 0.3);
+      
+      gl_FragColor = density;//vec4(texColor.x, 0, 0, 1);
+    }
+  `
+};
 
-const value = h * h - r * r;
+// 5. Create and add the ShaderPass
+const myEffectPass = new ShaderPass(MyCustomShader);
+composer.addPass(myEffectPass);
+
+const temp = [];
+const width = 1920;//renderer.domElement.width;
+const height = 840;//renderer.domElement.height;
+const data = new Uint8Array(4 * width * height);
+
+console.log(width, height);
+console.log(calculateBlock(100,0));
+
+for (let i = 0; i < width * height; i++) {
+  let block = calculateBlock(i % width, Math.floor(i / width));
+  if (block[0] == 0 && block[1] == 2) {
+    data[i * 4 + 2] = Math.round(calculateDensity(i % width, Math.floor(i / width), particles, blocks) * 255);
+    data[i * 4 + 0] = 0;
+    console.log("blue");
+  } else {
+    data[i * 4 + 0] = Math.round(calculateDensity(i % width, Math.floor(i / width), particles, blocks) * 255);
+    data[i * 4 + 2] = 0;
+  }
+  data[i * 4 + 1] = 0;
+  data[i * 4 + 3] = 255;
+}
 
 
+const denseTex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
+denseTex.needsUpdate = true;
+myEffectPass.uniforms.tDense.value = denseTex;
 
+composer.render();
 
-let then = 0;
+const deltaTime = 0.008//now - then;
 function animate( now ) {
-    now *= 0.001;  // convert to seconds
-    const deltaTime = 0.008//now - then;
-    then = now;
-
-    calculateDensity(particles);
-    calculatePressure(particles);
-    calculateForces(particles);
-    integrate(deltaTime, particles);
+    
+    //integrate(deltaTime, particles);
     constrainParticles(particles);
 
 
@@ -71,19 +126,10 @@ function animate( now ) {
         dummy.updateMatrix();
 
         circle.setMatrixAt(i, dummy.matrix);
-        circle.instanceMatrix.needsUpdate = true;
     }
 
-    renderer.render( scene, camera );
+    circle.instanceMatrix.needsUpdate = true;
+    //renderer.render( scene, camera );
+    composer.render();
 }
 renderer.setAnimationLoop( animate );
-
-
-
-window.addEventListener('keydown', (event) => {
-    if (event.key == 'z') {
-        camera.position.z -= 1;
-    } else if (event.key == 'x') {
-        camera.position.z += 1;
-    }
-}, false);
