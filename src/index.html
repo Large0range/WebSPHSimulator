@@ -8,7 +8,25 @@
     </style>
   </head>
   <body>
+      <div id="selectors">
+          <h1 style="text-align: center;color: white">Values</h1>
+          <div class="slidecontainer">
+            <span class="slider-header" id="widthDisp">Width: </span>
+            <input type="range" step="4" min="400" max="1280" value="400" class="slider" id="width">
+            <span class="slider-header" id="heightDisp">Height: </span>
+            <input type="range" step="3" min="300" max="960" value="300" class="slider" id="height">
+            <span class="slider-header" id="countDisp">Particle Count: </span>
+            <input type="range" min="10" max="100" value="10" class="slider" id="count">
+            <button id="run-button">Run</button>
+            <button id="stop-button">Stop</button>
+          </div>
+      </div>
+      <div id="loc">
+          <canvas id="preview"></canvas>
+          <canvas id="simulation" style="display: none;"></canvas>
+      </div>
     <script type="module" src="/main.js"></script>
     <script type="module" src="/particle.js"></script>
+    <script type="module" src="/simulation.js"></script>
   </body>
 </html>
