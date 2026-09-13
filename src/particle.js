@@ -64,36 +64,24 @@ export function createParticles(width, height, count) {
 
 export function calculateDensity(x, y, particles, blocks) {
     let density = 0;
-
     let checkingBlocks = [];
-    
-    let block = calculateBlock(x, y);
-    let blockX = block[0];
-    let blockY = block[1];
-
-    console.log(blockX, blockY);
-    //console.log(block, x, y, blocks[block[0]][block[1]]);
 
     //append all blocks immedately next to the innerblock
-    if (blockX != 0 && blockY != 0 && blockX != blocks.length-1) {
-        checkingBlocks.push(blocks[blockX-1][blockY-1]);
-        checkingBlocks.push(blocks[blockX+0][blockY-1]);
-        checkingBlocks.push(blocks[blockX+1][blockY-1]);
+    const [blockX, blockY] = calculateBlock(x, y);
+    const maxX = blocks.length - 1; // get total block length
+    const maxY = blocks[0].length - 1;  // get total block height
 
-        checkingBlocks.push(blocks[blockX-1][blockY+0]);
-        checkingBlocks.push(blocks[blockX+0][blockY+0]);
-        checkingBlocks.push(blocks[blockX+1][blockY+0]);
-
-        checkingBlocks.push(blocks[blockX-1][blockY+1]);
-        checkingBlocks.push(blocks[blockX+0][blockY+1]);
-        checkingBlocks.push(blocks[blockX+1][blockY+1]);
-    } else {
-        checkingBlocks.push(blocks[blockX][blockY]);
+    for (let dx = -1; dx <= 1; dx++) {      // 1x1 check grid
+        for (let dy = -1; dy <= 1; dy++) {
+            const nx = blockX + dx;
+            const ny = blockY + dy;
+            if (nx < 0 || nx > maxX || ny < 0 || ny > maxY) continue;
+            checkingBlocks.push(blocks[nx][ny]);
+        }
     }
     checkingBlocks = checkingBlocks.flat();
-    console.log(checkingBlocks);
 
-    if (checkingBlocks.length == 1) return 0;
+    if (checkingBlocks.length == 0) return 0;
 
     for (const p of checkingBlocks) {
         let distance = (new THREE.Vector2(x,y).distanceTo(p.position));
