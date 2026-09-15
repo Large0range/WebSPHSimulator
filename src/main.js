@@ -47,8 +47,6 @@ function setup(event) {
   canvas.setAttribute("width", widthSlider.value);
   canvas.setAttribute("height", heightSlider.value);
 
-  console.log(heightSlider.value);
-
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 

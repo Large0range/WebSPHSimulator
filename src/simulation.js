@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { calculateBlock, createParticles, constrainParticles, integrate, calculateDensity, smoothingRadius, createBlocks } from './particle';
 import { EffectComposer, GPUComputationRenderer, RenderPass, ShaderPass } from 'three/examples/jsm/Addons.js';
 
+import densityShaderSrc from './density.glsl?raw';
+import vertexShaderSrc from './vertex.glsl?raw';
+import displayShaderSrc from './display.glsl?raw';
 
 export function runSimulation(width, height, count) {
   const grid = false;
@@ -17,6 +20,36 @@ export function runSimulation(width, height, count) {
   const renderer = new THREE.WebGLRenderer({ canvas });
   renderer.setSize(width, height);
 
+
+
+  //setup the particle position texture that is used
+  const data = new Float32Array(4 * particles.length);
+  const s = Math.ceil(Math.sqrt(particles.length));
+  console.log(s, particles.length);
+
+  for (let i = 0; i < particles.length; i++) {
+    data[i * 4 + 0] = particles[i].position.x;
+    data[i * 4 + 1] = particles[i].position.y;
+    data[i * 4 + 2] = 0;
+    data[i * 4 + 3] = 0;
+  }
+
+  const positionTexture = new THREE.DataTexture(data, s, s, THREE.RGBAFormat, THREE.FloatType);
+  positionTexture.needsUpdate = true;
+  //BLOCK AND SORT THIS DATA HERE WITH SHELLSORT.GLSL
+  console.log(data);
+
+
+  //create the fragment shader passthrough
+  const computationRenderer = new GPUComputationRenderer(width, height, renderer);
+  const densityTexture = computationRenderer.createTexture();
+  const posVar = computationRenderer.addVariable("positions", densityShaderSrc, positionTexture);
+  posVar.material.uniforms.count = { value: particles.length };
+  posVar.material.uniforms.texSize = { value: s };
+  computationRenderer.init();
+
+
+  //create the post effect composer
   const composer = new EffectComposer(renderer);
   const DisplayShader = {
     uniforms: {
@@ -25,59 +58,23 @@ export function runSimulation(width, height, count) {
       tDense: { value: null },
       particleCount: { value: particles.length }
     },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D tDiffuse;
-      uniform sampler2D tDense;
-      uniform int particleCount;
-      varying vec2 vUv;
-
-
-
-      void main() {
-        // Sample the original rendered scene pixel color
-        vec4 texColor = texture2D(tDiffuse, vUv);
-        vec4 density = texture2D(tDense, vUv);
-        vec4 finalColor = vec4(1,0,0,1);//mix(texColor, vec4(1.0, 0.0, 0.0, 1.0), effect * 0.3);
-
-        gl_FragColor = density;//vec4(texColor.x, 0, 0, 1);
-      }
-    `
+    vertexShader: vertexShaderSrc,
+    fragmentShader: displayShaderSrc
   };
 
-  // 5. Create and add the ShaderPass
+  // Create the shader pass
   const densityPass = new ShaderPass(DisplayShader);
   composer.addPass(densityPass);
 
-  const temp = [];
-  const data = new Uint8Array(4 * width * height);
 
-  console.log(width, height);
-  console.log(calculateBlock(100, 0));
-
-  for (let i = 0; i < width * height; i++) {
-    let block = calculateBlock(i % width, Math.floor(i / width));
-    data[i * 4 + 2] = Math.round(calculateDensity(i % width, Math.floor(i / width), particles, blocks) * 255);
-    data[i * 4 + 0] = 0;
-    if ((Math.floor(i / width) % smoothingRadius == 0 || i % smoothingRadius == 0) && grid)
-      data[i * 4 + 0] = 255;
-
-    data[i * 4 + 1] = 0;
-    data[i * 4 + 3] = 255;
-  }
-
-
-  const denseTex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
-  denseTex.needsUpdate = true;
-  densityPass.uniforms.tDense.value = denseTex;
-
+  //calculate the density field, take the output, and then render
+  computationRenderer.compute();
+  densityPass.uniforms.tDense.value = computationRenderer.getCurrentRenderTarget(posVar).texture;
   composer.render();
+
+
+
+
 
   const deltaTime = 0.008//now - then;
 
@@ -92,6 +89,7 @@ export function runSimulation(width, height, count) {
     densityPass.material.dispose();
     densityPass.uniforms.tDense.value.dispose();
     renderer.dispose();
+    computationRenderer.dispose();
     renderer.forceContextLoss();
 
     document.querySelector("#run-button").removeAttribute("disabled");
