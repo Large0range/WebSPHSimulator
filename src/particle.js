@@ -3,7 +3,7 @@ import * as THREE from 'three';
 const restDensity = 0.0;
 const stiffness = 10;
 export const smoothingRadius = 40;
-const mass = 100;
+export const mass = 100;
 const viscosity = 0; // tune this
 
 

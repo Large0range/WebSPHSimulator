@@ -1,10 +1,44 @@
 #define PI 3.14159265359
-#define MASS 500.0
-#define RADIUS 40.0
+//#define MASS 500.0
+//#define RADIUS 40.0
+
+uniform float RADIUS;
+uniform float MASS;
 
 uniform int count;
-uniform int texSize;
+uniform int texWidth;
+uniform int texHeight;
+uniform int numBlocksX; // how many blocks span the domain in x — needed to flatten (bx,by) consistently
 uniform sampler2D positions;
+
+// bx/by are the 2D block coords, flattened row-major (must match how you sorted the buffer)
+float calculate_block(vec2 p) {
+    float bx = floor(p.x / RADIUS);
+    float by = floor(p.y / RADIUS);
+    return bx + by * float(numBlocksX);
+}
+
+float readBlock(int i) {
+    float y = float(i / texWidth);
+    float x = float(i % texWidth);
+    vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
+    return texture(positions, uv).z;
+}
+
+// first index whose block id is >= target (standard binary search lower_bound)
+int lowerBound(float target) {
+    int lo = 0;
+    int hi = count;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (readBlock(mid) < target) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
 
 float smoothing_kernel(float radius, float distance) {
     float volume = PI * pow(radius, 8.0) / 4.0;
@@ -13,54 +47,39 @@ float smoothing_kernel(float radius, float distance) {
 }
 
 void main() {
-    float density = 0.0; // density of this particular pixel in the texture
-    for (int i = 0; i < count; i++) {   // loop over all particles in the simulation
-        float y = float(i / texSize);
-        float x = float(i % texSize);
-        vec2 uv = (vec2(x,y) + 0.5)/float(texSize);  // particle positions are stored in a texture, retrieve them
+    float density = 0.0;
 
-        vec2 particlePos = texture(positions, uv).xy; // finally pull the location of the position out of the texture
+    float bx = floor(gl_FragCoord.x / RADIUS);
+    float by = floor(gl_FragCoord.y / RADIUS);
 
-        float influence = smoothing_kernel(RADIUS, distance(gl_FragCoord.xy, particlePos.xy)); // calculate the influence based on the smoothing kernel
-        density += influence * MASS;
+    // walk the 3 rows above/current/below this block
+    for (int dy = -1; dy <= 1; dy++) {
+        float rowY = by + float(dy);
+        if (rowY < 0.0) continue;
+
+        float rowBase = rowY * float(numBlocksX);
+
+        float xLo = max(bx - 1.0, 0.0);
+        float xHi = min(bx + 1.0, float(numBlocksX - 1));
+        if (xLo > xHi) continue;
+
+        float startBlock = rowBase + xLo;
+        float endBlockExclusive = rowBase + xHi + 1.0; // one past the last block we want
+
+        int start = lowerBound(startBlock);
+        int end = lowerBound(endBlockExclusive);
+
+        for (int i = start; i < end; i++) {
+            float y = float(i / texWidth);
+            float x = float(i % texWidth);
+            vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
+            vec3 data = texture(positions, uv).xyz;
+
+            vec2 particlePos = data.xy;
+            float influence = smoothing_kernel(RADIUS, distance(gl_FragCoord.xy, particlePos.xy));
+            density += influence * MASS;
+        }
     }
 
     gl_FragColor = vec4(density, 0, 0, 1);
 }
-
-/*
-function SmoothingKernel(radius, distance) {
-    let volume = Math.PI * Math.pow(radius, 8) / 4;
-    let value = Math.max(0, radius * radius - distance * distance);
-    return value * value * value / volume;
-}
-
-export function calculateDensity(x, y, particles, blocks) {
-    let density = 0;
-    let checkingBlocks = [];
-
-    //append all blocks immedately next to the innerblock
-    const [blockX, blockY] = calculateBlock(x, y);
-    const maxX = blocks.length - 1; // get total block length
-    const maxY = blocks[0].length - 1;  // get total block height
-
-    for (let dx = -1; dx <= 1; dx++) {      // 1x1 check grid
-        for (let dy = -1; dy <= 1; dy++) {
-            const nx = blockX + dx;
-            const ny = blockY + dy;
-            if (nx < 0 || nx > maxX || ny < 0 || ny > maxY) continue;
-            checkingBlocks.push(blocks[nx][ny]);
-        }
-    }
-    checkingBlocks = checkingBlocks.flat();
-
-    if (checkingBlocks.length == 0) return 0;
-
-    for (const p of checkingBlocks) {
-        let distance = (new THREE.Vector2(x,y).distanceTo(p.position));
-        let influence = SmoothingKernel(smoothingRadius, distance);
-        density += mass * influence;
-    }
-
-    return density;
-}*/

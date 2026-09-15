@@ -13,18 +13,21 @@ void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy; // calculate the uv for this location
     vec2 partnerUV = (vec2(partnerTexel) + 0.5) / resolution.xy; // calculate the partner uv
 
-    float thisValue = texture(positionTexture, uv).x; // grab our value
-    float partnerValue = texture(positionTexture, partnerUV).x; // grab our partner value
+    vec2 thisPosition = texture(positionTexture, uv).xy; // grab our positions to pass through
+    float thisValue = texture(positionTexture, uv).z; // grab our value
+
+    vec2 partnerPosition = texture(positionTexture, partnerUV).xy; // grab our positions to pass through
+    float partnerValue = texture(positionTexture, partnerUV).z; // grab our partner value
 
     if (idx > partnerIDX) {    // if we are higher in the list we want greater values
         if (thisValue < partnerValue)
-            gl_FragColor = vec4(partnerValue, 0,0,0);
+            gl_FragColor = vec4(partnerPosition.xy, partnerValue, 0);
         else
-            gl_FragColor = vec4(thisValue, 0,0,0);
+            gl_FragColor = vec4(thisPosition.xy, thisValue, 0);
     } else {   // lower in the list we want smaller values
         if (thisValue > partnerValue)
-            gl_FragColor = vec4(partnerValue, 0,0,0);
+            gl_FragColor = vec4(partnerPosition.xy, partnerValue, 0);
         else
-            gl_FragColor = vec4(thisValue, 0,0,0);
+            gl_FragColor = vec4(thisPosition.xy, thisValue, 0);
     }
 }

@@ -36,13 +36,13 @@ function setup(event) {
   });
 
   countSlider.addEventListener("input", (event) => {
-    countDisplay.innerHTML = "Particle Count: " + event.target.value;
+    countDisplay.innerHTML = "Particle Count: " + Math.pow(2, event.target.value);
   });
 
 
   widthDisplay.innerHTML = "Width: " + widthSlider.value;
   heightDisplay.innerHTML = "Height: " + heightSlider.value;
-  countDisplay.innerHTML = "Particle Count: " + countSlider.value;
+  countDisplay.innerHTML = "Particle Count: " + Math.pow(2, countSlider.value);
 
   canvas.setAttribute("width", widthSlider.value);
   canvas.setAttribute("height", heightSlider.value);
@@ -58,7 +58,7 @@ function setup(event) {
     document.querySelector("#simulation").style.display = "";
     canvas.style.display = "none";
 
-    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Number(countSlider.value));
+    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)));
   })
 }
 
