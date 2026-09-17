@@ -2,8 +2,7 @@ import * as THREE from 'three';
 
 const restDensity = 0.0;
 const stiffness = 10;
-export const smoothingRadius = 40;
-export const mass = 100;
+//export const mass = 100;
 const viscosity = 0; // tune this
 
 
@@ -26,8 +25,8 @@ export class Particle {
     }
 }
 
-export function calculateBlock(x, y) {
-    return [Math.floor(x / smoothingRadius), Math.floor(y / smoothingRadius)]
+export function calculateBlock(x, y, radius) {
+    return [Math.floor(x / radius), Math.floor(y / radius)]
 }
 
 export function createBlocks(width, height, particles) {

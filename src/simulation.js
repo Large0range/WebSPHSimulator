@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { calculateBlock, createParticles, constrainParticles, integrate, calculateDensity, smoothingRadius, createBlocks, mass } from './particle';
+import { calculateBlock, createParticles } from './particle';
 import { EffectComposer, GPUComputationRenderer, RenderPass, ShaderPass } from 'three/examples/jsm/Addons.js';
 
 import densityShaderSrc from './density.glsl?raw';
@@ -13,10 +13,14 @@ function roundToEven(x) {
   return c;
 }
 
-export function runSimulation(width, height, count) {
+export function runSimulation(width, height, count, smoothingRadius, mass) {
   //count = 4;
 
+
+  //const smoothingRadius = Number(document.querySelector("#smooth").value);
   const numBlocksX = width / smoothingRadius;
+
+
 
   const particles = createParticles(width, height, count);
   //const blocks = createBlocks(width, height, particles);
@@ -43,7 +47,7 @@ export function runSimulation(width, height, count) {
 
     data[i * 4 + 0] = x;
     data[i * 4 + 1] = y;
-    let [a, b] = calculateBlock(x, y);
+    let [a, b] = calculateBlock(x, y, smoothingRadius);
 
     data[i * 4 + 2] = a + b * numBlocksX; // flatten blocks into singular value
     data[i * 4 + 3] = 0;
@@ -91,6 +95,7 @@ export function runSimulation(width, height, count) {
   //create the fragment shader passthrough
   const computationRenderer = new GPUComputationRenderer(width, height, renderer);
   const posVar = computationRenderer.addVariable("positions", densityShaderSrc, sortedPositionTexture);
+
   posVar.material.uniforms.RADIUS = { value: smoothingRadius };
   posVar.material.uniforms.MASS = { value: mass };
   posVar.material.uniforms.numBlocksX = { value: numBlocksX };
@@ -130,8 +135,20 @@ export function runSimulation(width, height, count) {
   const deltaTime = 0.008//now - then;
 
   renderer.setAnimationLoop((now) => {
-    constrainParticles(particles);
+    //constrainParticles(particles);
+    for (let i = count - 1; i > 0; i--) {
+      sortPosVar.material.uniforms.DISTANCE = { value: i };
+      sortRenderer.compute();
+    }
+
+    posVar.material.uniforms.positions = { value: sortRenderer.getCurrentRenderTarget(sortPosVar).texture };
+
+
+    //calculate the density field, take the output, and then render
+    computationRenderer.compute();
+    densityPass.uniforms.tDense.value = computationRenderer.getCurrentRenderTarget(posVar).texture;
     composer.render();
+
   })
 
   const cleanup = () => {

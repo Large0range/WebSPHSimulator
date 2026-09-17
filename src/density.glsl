@@ -11,13 +11,14 @@ uniform int texHeight;
 uniform int numBlocksX; // how many blocks span the domain in x — needed to flatten (bx,by) consistently
 uniform sampler2D positions;
 
-// bx/by are the 2D block coords, flattened row-major (must match how you sorted the buffer)
+// bx/by are the 2D block coords, flattened row-major
 float calculate_block(vec2 p) {
     float bx = floor(p.x / RADIUS);
     float by = floor(p.y / RADIUS);
     return bx + by * float(numBlocksX);
 }
 
+// get block from texture
 float readBlock(int i) {
     float y = float(i / texWidth);
     float x = float(i % texWidth);
@@ -49,19 +50,19 @@ float smoothing_kernel(float radius, float distance) {
 void main() {
     float density = 0.0;
 
-    float bx = floor(gl_FragCoord.x / RADIUS);
-    float by = floor(gl_FragCoord.y / RADIUS);
+    float bx = floor(gl_FragCoord.x / RADIUS); // get x block
+    float by = floor(gl_FragCoord.y / RADIUS); // get y block
 
     // walk the 3 rows above/current/below this block
     for (int dy = -1; dy <= 1; dy++) {
         float rowY = by + float(dy);
-        if (rowY < 0.0) continue;
+        if (rowY < 0.0) continue; // clamps edges
 
         float rowBase = rowY * float(numBlocksX);
 
         float xLo = max(bx - 1.0, 0.0);
         float xHi = min(bx + 1.0, float(numBlocksX - 1));
-        if (xLo > xHi) continue;
+        if (xLo > xHi) continue; // clamps edges
 
         float startBlock = rowBase + xLo;
         float endBlockExclusive = rowBase + xHi + 1.0; // one past the last block we want
@@ -81,5 +82,5 @@ void main() {
         }
     }
 
-    gl_FragColor = vec4(density, 0, 0, 1);
+    gl_FragColor = vec4(0, 0, density, 1);
 }
