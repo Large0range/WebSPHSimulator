@@ -1,17 +1,22 @@
 #define PI 3.14159265359
 
 //auto injects positionTexture, densityTexture
+uniform sampler2D positionTexture;
 
 //vector 1,1 is up and right
 uniform float RADIUS;
 uniform float STIFF;
 uniform float MASS;
 uniform float TARGET_DENSITY;
+uniform float DELTA_TIME;
 
-uniform int width;
-uniform int height;
+uniform int texWidth;
+uniform int texHeight;
 uniform int count;
 uniform int numBlocksX;
+
+uniform int screenWidth;
+uniform int screenHeight;
 
 
 float calculate_block(vec2 p) {
@@ -23,9 +28,9 @@ float calculate_block(vec2 p) {
 
 // get block from texture
 float readBlock(int i) {
-    float y = float(i / width);
-    float x = float(i % width);
-    vec2 uv = (vec2(x, y) + 0.5) / vec2(width, height);
+    float y = float(i / texWidth);
+    float x = float(i % texWidth);
+    vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
     return texture(positionTexture, uv).z;
 }
 
@@ -49,7 +54,7 @@ int lowerBound(float target) {
 vec2 spiky_kernel_gradient(float radius, vec2 r_vector) {
     float distance = length(r_vector);
 
-    if (distance > radius || distance < 0.0) return vec2(0.0);
+    if (distance > radius || distance == 0.0) return vec2(0.0);
     float value = radius - distance;
     vec2 unit_vector = r_vector / distance;
     float scale = -10.0 / (PI * pow(radius, 5.0));
@@ -66,13 +71,16 @@ void main() {
     float density = texture(densityTexture, uv).z;
     vec3 position = texture(positionTexture, uv).xyz;
 
-
-
-
     vec2 pressure_force = vec2(0.0);
 
-    float bx = floor(gl_FragCoord.x / RADIUS); // get x block
-    float by = floor(gl_FragCoord.y / RADIUS); // get y block
+    float bx = floor(position.x / RADIUS); // get x block
+    float by = floor(position.y / RADIUS); // get y block
+
+
+    if (density == 0.0) {
+        gl_FragColor = vec4(position, 1);
+        return;
+    }
 
     // walk the 3 rows above/current/below this block
     for (int dy = -1; dy <= 1; dy++) {
@@ -92,17 +100,18 @@ void main() {
         int end = lowerBound(endBlockExclusive);
 
         for (int i = start; i < end; i++) {
-            float y = float(i / width);
-            float x = float(i % width);
-            vec2 uv = (vec2(x, y) + 0.5) / vec2(width, height);
+            float y = float(i / texWidth);
+            float x = float(i % texWidth);
+            vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
             vec3 data = texture(positionTexture, uv).xyz;
 
             float densityI = texture(densityTexture, uv).z;
+            if (densityI == 0.0) continue;
 
             vec2 particlePos = data.xy;
 
             float pressure_density = (density_to_pressure(densityI) / pow(densityI, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
-            vec2 gradient = spiky_kernel_gradient(RADIUS, gl_FragCoord.xy - particlePos.xy);
+            vec2 gradient = spiky_kernel_gradient(RADIUS, position.xy - particlePos);
             pressure_force += MASS * pressure_density * gradient;
         }
     }
@@ -110,15 +119,15 @@ void main() {
     // convert density to pressure
     // pressure = stiffness(density - target_density)
 
-
-
+    position.xy += -pressure_force * DELTA_TIME;
+    //position.y -= 1.0;
 
 
     //clamp positionings and recalculate the block
-    position.y = min(position.y, resolution.y);
+    position.y = min(position.y, float(screenHeight));
     position.y = max(position.y, 0.0);
 
-    position.x = min(position.x, resolution.x);
+    position.x = min(position.x, float(screenWidth));
     position.x = max(position.x, 0.0);
 
     position.z = calculate_block(position.xy);

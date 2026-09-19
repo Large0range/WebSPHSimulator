@@ -9,7 +9,7 @@ uniform int count;
 uniform int texWidth;
 uniform int texHeight;
 uniform int numBlocksX; // how many blocks span the domain in x — needed to flatten (bx,by) consistently
-uniform sampler2D positions;
+uniform sampler2D positionTexture;
 
 // bx/by are the 2D block coords, flattened row-major
 float calculate_block(vec2 p) {
@@ -23,7 +23,7 @@ float readBlock(int i) {
     float y = float(i / texWidth);
     float x = float(i % texWidth);
     vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-    return texture(positions, uv).z;
+    return texture(positionTexture, uv).z;
 }
 
 // first index whose block id is >= target (standard binary search lower_bound)
@@ -70,8 +70,10 @@ vec2 spiky_kernel_gradient(vec2 r_vector, float radius) {
 void main() {
     float density = 0.0;
 
-    float bx = floor(gl_FragCoord.x / RADIUS); // get x block
-    float by = floor(gl_FragCoord.y / RADIUS); // get y block
+    vec2 position = texture(positionTexture, gl_FragCoord.xy / resolution.xy).xy;
+
+    float bx = floor(position.x / RADIUS); // get x block
+    float by = floor(position.y / RADIUS); // get y block
 
     // walk the 3 rows above/current/below this block
     for (int dy = -1; dy <= 1; dy++) {
@@ -94,10 +96,10 @@ void main() {
             float y = float(i / texWidth);
             float x = float(i % texWidth);
             vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-            vec3 data = texture(positions, uv).xyz;
+            vec3 data = texture(positionTexture, uv).xyz;
 
             vec2 particlePos = data.xy;
-            float influence = smoothing_kernel(RADIUS, distance(gl_FragCoord.xy, particlePos.xy));
+            float influence = smoothing_kernel(RADIUS, distance(position, particlePos.xy));
             density += influence * MASS;
         }
     }

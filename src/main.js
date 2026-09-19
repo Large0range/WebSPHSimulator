@@ -24,6 +24,12 @@ const smoothSlider = document.body.querySelector("#smooth");
 const massDisplay = document.body.querySelector("#massDisp");
 const massSlider = document.body.querySelector("#mass");
 
+const stiffDisplay = document.body.querySelector("#stiffDisp");
+const stiffSlider = document.body.querySelector("#stiff");
+
+const targetDisplay = document.body.querySelector("#targetDisp");
+const targetSlider = document.body.querySelector("#target");
+
 
 //default setup for startup
 function setup(event) {
@@ -53,11 +59,22 @@ function setup(event) {
     massDisplay.innerHTML = "Mass: " + event.target.value;
   });
 
+  stiffSlider.addEventListener("input", (event) => {
+    stiffDisplay.innerHTML = "Stiff: " + event.target.value;
+  })
+
+
+  targetSlider.addEventListener("input", (event) => {
+    targetDisplay.innerHTML = "Target: " + event.target.value / 1000;
+  })
+
   widthDisplay.innerHTML = "Width: " + widthSlider.value;
   heightDisplay.innerHTML = "Height: " + heightSlider.value;
   countDisplay.innerHTML = "Particle Count: " + Math.pow(2, countSlider.value);
   smoothDisplay.innerHTML = "Smooth: " + smoothSlider.value;
   massDisplay.innerHTML = "Mass: " + massSlider.value;
+  stiffDisplay.innerHTML = "Stiff: " + stiffSlider.value;
+  targetDisplay.innerHTML = "Target: " + targetSlider.value / 1000;
 
   canvas.setAttribute("width", widthSlider.value);
   canvas.setAttribute("height", heightSlider.value);
@@ -73,7 +90,7 @@ function setup(event) {
     document.querySelector("#simulation").style.display = "";
     canvas.style.display = "none";
 
-    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value));
+    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(targetSlider.value / 1000));
   })
 }
 

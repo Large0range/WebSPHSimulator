@@ -17,12 +17,12 @@ function roundToEven(x) {
   return c;
 }
 
-export function runSimulation(width, height, count, smoothingRadius, mass) {
+export function runSimulation(width, height, count, smoothingRadius, mass, stiffness_constant, target_density) {
   //count = 4;
 
 
-  const stiffness_constant = 1;
-  const target_density = 0.5;
+
+  const deltaTime = 0.008//now - then;
 
 
 
@@ -36,13 +36,13 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
   const texWidth = roundToEven(Math.sqrt(count));
   const texHeight = count / texWidth;
 
-  const numBlocksX = width / smoothingRadius;
+  const numBlocksX = Math.ceil(width / smoothingRadius) + 1;
 
 
-  const particles = createParticles(texWidth, texHeight, count);
+  const particles = createParticles(width, height, count);
 
-  width = texWidth;
-  height = texHeight;
+  //width = texWidth;
+  //height = texHeight;
 
 
 
@@ -72,6 +72,8 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
     data[i * 4 + 2] = a + b * numBlocksX; // flatten blocks into singular value
     data[i * 4 + 3] = 0;
   }
+
+  console.log(data);
 
   const positionTexture = new THREE.DataTexture(data, texWidth, texHeight, THREE.RGBAFormat, THREE.FloatType);
   positionTexture.needsUpdate = true;
@@ -124,17 +126,22 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
 
 
   const physicsPosVar = physicsRenderer.addVariable("positionTexture", moveShaderSrc, sortedPositionTexture);
-  physicsRenderer.setVariableDependencies(physicsPosVar, [densityVar, physicsPosVar]);
+  physicsRenderer.setVariableDependencies(physicsPosVar, [densityVar]);
 
-  physicsPosVar.material.uniforms.width = { value: width };
-  physicsPosVar.material.uniforms.height = { value: height };
+  physicsPosVar.material.uniforms.texWidth = { value: texWidth };
+  physicsPosVar.material.uniforms.texHeight = { value: texHeight };
+  physicsPosVar.material.uniforms.screenWidth = { value: width };
+  physicsPosVar.material.uniforms.screenHeight = { value: height };
   physicsPosVar.material.uniforms.count = { value: particles.length };
   physicsPosVar.material.uniforms.STIFF = { value: stiffness_constant };
   physicsPosVar.material.uniforms.TARGET_DENSITY = { value: target_density };
   physicsPosVar.material.uniforms.MASS = { value: mass };
+  physicsPosVar.material.uniforms.RADIUS = { value: smoothingRadius };
+  physicsPosVar.material.uniforms.DELTA_TIME = { value: deltaTime };
   physicsPosVar.material.uniforms.numBlocksX = { value: numBlocksX };
 
   physicsRenderer.init();
+
 
 
   //create the post effect composer
@@ -143,8 +150,15 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
     uniforms: {
       // tDiffuse is automatically populated with the rendered scene texture
       tDiffuse: { value: null },
-      tDense: { value: null },
-      particleCount: { value: particles.length }
+
+      RADIUS: { value: smoothingRadius },
+      MASS: { value: mass },
+      count: { value: count },
+      texWidth: { value: texWidth },
+      texHeight: { value: texHeight },
+      numBlocksX: { value: numBlocksX },
+
+      positionTexture: { value: null },
     },
     vertexShader: vertexShaderSrc,
     fragmentShader: displayShaderSrc
@@ -157,26 +171,32 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
 
 
 
-  const deltaTime = 0.008//now - then;
 
+  const buffer = new Float32Array(texWidth * texHeight * 4); // RGBA per texel
   renderer.setAnimationLoop((now) => {
     //constrainParticles(particles);
     // reset sorting to new positions
 
-    //sortRenderer.renderTexture(computationRenderer.getCurrentRenderTarget(physicsPosVar).texture, sortPosVar.renderTargets[0]);
-    //sortRenderer.renderTexture(computationRenderer.getCurrentRenderTarget(physicsPosVar).texture, sortPosVar.renderTargets[1]);
+    sortRenderer.renderTexture(physicsRenderer.getCurrentRenderTarget(physicsPosVar).texture, sortPosVar.renderTargets[0]);
+    sortRenderer.renderTexture(physicsRenderer.getCurrentRenderTarget(physicsPosVar).texture, sortPosVar.renderTargets[1]);
 
     for (let i = count - 1; i > 0; i--) {
       sortPosVar.material.uniforms.DISTANCE.value = i;
       sortRenderer.compute();
     }
 
-    densityVar.material.uniforms.positions = { value: sortRenderer.getCurrentRenderTarget(sortPosVar).texture };
+    densityVar.material.uniforms.positionTexture = { value: sortRenderer.getCurrentRenderTarget(sortPosVar).texture };
+    physicsPosVar.material.uniforms.positionTexture = { value: sortRenderer.getCurrentRenderTarget(sortPosVar).texture };
     physicsRenderer.compute();
 
     //calculate the density field, take the output, and then render
 
-    densityPass.uniforms.tDense.value = physicsRenderer.getCurrentRenderTarget(densityVar).texture;
+
+    console.log("pass");
+    renderer.readRenderTargetPixels(physicsRenderer.getCurrentRenderTarget(physicsPosVar), 0, 0, texWidth, texHeight, buffer);
+    console.log(buffer);
+
+    densityPass.uniforms.positionTexture.value = sortRenderer.getCurrentRenderTarget(sortPosVar).texture;
     composer.render();
 
   })
@@ -185,7 +205,7 @@ export function runSimulation(width, height, count, smoothingRadius, mass) {
     renderer.setAnimationLoop(null);
     composer.dispose();
     densityPass.material.dispose();
-    densityPass.uniforms.tDense.value.dispose();
+    densityPass.uniforms.positionTexture.value.dispose();
     renderer.dispose();
     physicsRenderer.dispose();
     sortRenderer.dispose();
