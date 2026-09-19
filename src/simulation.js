@@ -17,13 +17,17 @@ function roundToEven(x) {
   return c;
 }
 
-export function runSimulation(width, height, count, smoothingRadius, mass, stiffness_constant, viscosity_constant, target_density) {
+export function runSimulation(width, height, count, smoothingRadius, mass, stiffSlider, viscSlider, targetSlider, gravSlider) {
   //count = 4;
-
 
 
   const deltaTime = 0.004;// best
   const refDensity = mass * count / (width * height);
+
+
+  const stiffness_constant = Number(stiffSlider.value);
+  const viscosity_constant = Number(viscSlider.value);
+  const target_density = Number(targetSlider.value / 100);
 
 
 
@@ -214,7 +218,15 @@ export function runSimulation(width, height, count, smoothingRadius, mass, stiff
     physicsPosVar.material.uniforms.positionTexture = { value: sortRenderer.getCurrentRenderTarget(sortPosVar).texture };
     physicsPosVar.material.uniforms.densityTexture = { value: densityRenderer.getCurrentRenderTarget(densityVar).texture };
     physicsPosVar.material.uniforms.mouseDown.value = mouseDown;
-    physicsPosVar.material.uniforms.mousePos = {value: mousePos};
+    physicsPosVar.material.uniforms.mousePos = { value: mousePos };
+
+
+    physicsPosVar.material.uniforms.STIFF = { value: Number(stiffSlider.value) };
+    physicsPosVar.material.uniforms.VISC_CONSTANT = { value: Number(viscSlider.value) };
+    physicsPosVar.material.uniforms.TARGET_DENSITY = { value: Number(targetSlider.value / 100) * refDensity };
+    physicsPosVar.material.uniforms.GRAVITY = { value: Number(gravSlider.value) };
+
+
     physicsRenderer.compute();
 
     //calculate the density field, take the output, and then render

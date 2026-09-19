@@ -33,6 +33,9 @@ const targetSlider = document.body.querySelector("#target");
 const viscDisplay = document.body.querySelector("#viscDisp");
 const viscSlider = document.body.querySelector("#visc");
 
+const gravDisplay = document.body.querySelector("#gravDisp");
+const gravSlider = document.body.querySelector("#grav");
+
 
 //default setup for startup
 function setup(event) {
@@ -74,6 +77,9 @@ function setup(event) {
     targetDisplay.innerHTML = "Target: " + event.target.value / 100;
   })
 
+  gravSlider.addEventListener("input", (event) => {
+    gravDisplay.innerHTML = "Gravity: " + event.target.value;
+  })
 
   widthDisplay.innerHTML = "Width: " + widthSlider.value;
   heightDisplay.innerHTML = "Height: " + heightSlider.value;
@@ -83,6 +89,7 @@ function setup(event) {
   stiffDisplay.innerHTML = "Stiff: " + stiffSlider.value;
   viscDisplay.innerHTML = "Visc: " + viscSlider.value;
   targetDisplay.innerHTML = "Target: " + targetSlider.value / 100;
+  gravDisplay.innerHTML = "Gravity: " + gravSlider.value;
 
   canvas.setAttribute("width", widthSlider.value);
   canvas.setAttribute("height", heightSlider.value);
@@ -98,7 +105,7 @@ function setup(event) {
     document.querySelector("#simulation").style.display = "";
     canvas.style.display = "none";
 
-    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(viscSlider.value), Number(targetSlider.value / 100));
+    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), stiffSlider, viscSlider, targetSlider, gravSlider);
   })
 }
 

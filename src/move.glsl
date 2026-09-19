@@ -11,6 +11,7 @@ uniform float VISC_CONSTANT;
 uniform float MASS;
 uniform float TARGET_DENSITY;
 uniform float DELTA_TIME;
+uniform float GRAVITY;
 
 uniform int texWidth;
 uniform int texHeight;
@@ -147,7 +148,7 @@ void main() {
     //position.y -= 1.0;
     if (mouseDown) {
         float mouseRadius = 50.0;
-        float mouseStrength = 100.0;
+        float mouseStrength = 500.0;
 
         vec2 delta = position - mousePos;
         float d = length(delta);
@@ -160,9 +161,9 @@ void main() {
 
     acceleration += -pressure_force;
     acceleration += viscosity_force * VISC_CONSTANT;
-    //acceleration += vec2(0,-1) * density;
-    velocity += acceleration * DELTA_TIME;
-    position += velocity;
+    acceleration += vec2(0,-1) * density * GRAVITY;
+    velocity += acceleration;
+    position += velocity * DELTA_TIME;
 
 
     //clamp positionings and recalculate the block
