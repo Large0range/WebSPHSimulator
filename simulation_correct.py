@@ -63,10 +63,7 @@ def calculate_pressure(d):
 
 def calculate_density(a):
 	density = 0
-	for i in range(0, len(particles)):
-		if a == i:
-			continue
-	
+	for i in range(0, len(particles)):	
 		density += mass * poly6_kernel(a, i)
 
 	return density

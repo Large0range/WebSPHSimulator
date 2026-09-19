@@ -2,6 +2,7 @@
 
 //auto injects positionTexture, densityTexture
 uniform sampler2D positionTexture;
+uniform sampler2D densityTexture;
 
 //vector 1,1 is up and right
 uniform float RADIUS;
@@ -18,6 +19,9 @@ uniform int numBlocksX;
 uniform int screenWidth;
 uniform int screenHeight;
 
+uniform vec2 mousePos;
+uniform bool mouseDown;
+
 
 float calculate_block(vec2 p) {
     float bx = floor(p.x / RADIUS);
@@ -31,7 +35,7 @@ float readBlock(int i) {
     float y = float(i / texWidth);
     float x = float(i % texWidth);
     vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-    return texture(positionTexture, uv).z;
+    return calculate_block(texture(positionTexture, uv).xy);
 }
 
 // first index whose block id is >= target (standard binary search lower_bound)
@@ -69,7 +73,9 @@ void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
     float density = texture(densityTexture, uv).z;
-    vec3 position = texture(positionTexture, uv).xyz;
+    vec2 position = texture(positionTexture, uv).xy;
+    vec2 velocity = texture(positionTexture, uv).zw;
+    vec2 acceleration = vec2(0.0);
 
     vec2 pressure_force = vec2(0.0);
 
@@ -78,7 +84,7 @@ void main() {
 
 
     if (density == 0.0) {
-        gl_FragColor = vec4(position, 1);
+        gl_FragColor = vec4(position, 0, 1);
         return;
     }
 
@@ -103,15 +109,14 @@ void main() {
             float y = float(i / texWidth);
             float x = float(i % texWidth);
             vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-            vec3 data = texture(positionTexture, uv).xyz;
+            vec2 particlePos = texture(positionTexture, uv).xy;
 
             float densityI = texture(densityTexture, uv).z;
             if (densityI == 0.0) continue;
 
-            vec2 particlePos = data.xy;
 
             float pressure_density = (density_to_pressure(densityI) / pow(densityI, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
-            vec2 gradient = spiky_kernel_gradient(RADIUS, position.xy - particlePos);
+            vec2 gradient = spiky_kernel_gradient(RADIUS, position - particlePos);
             pressure_force += MASS * pressure_density * gradient;
         }
     }
@@ -119,8 +124,25 @@ void main() {
     // convert density to pressure
     // pressure = stiffness(density - target_density)
 
-    position.xy += -pressure_force * DELTA_TIME;
+    //position.xy += -pressure_force * DELTA_TIME;
     //position.y -= 1.0;
+    if (mouseDown) {
+        float mouseRadius = 50.0;
+        float mouseStrength = 100.0;
+
+        vec2 delta = position - mousePos;
+        float d = length(delta);
+
+        if (d < mouseRadius && d > 0.0001) {
+            float falloff = 1.0 - d / mouseRadius;
+            acceleration += (delta / d) * mouseStrength * falloff * falloff;
+        }
+    }
+
+    acceleration += -pressure_force;
+    acceleration += vec2(0,-1);
+    velocity += acceleration * DELTA_TIME;
+    position += velocity;
 
 
     //clamp positionings and recalculate the block
@@ -130,7 +152,7 @@ void main() {
     position.x = min(position.x, float(screenWidth));
     position.x = max(position.x, 0.0);
 
-    position.z = calculate_block(position.xy);
+    //position.z = calculate_block(position.xy);
 
-    gl_FragColor = vec4(position, 0);
+    gl_FragColor = vec4(position, velocity);
 }

@@ -7,6 +7,8 @@ varying vec2 vUv;
 uniform float RADIUS;
 uniform float MASS;
 
+uniform float refDense;
+
 uniform int count;
 uniform int texWidth;
 uniform int texHeight;
@@ -27,7 +29,7 @@ float readBlock(int i) {
     float y = float(i / texWidth);
     float x = float(i % texWidth);
     vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-    return texture(positionTexture, uv).z;
+    return calculate_block(texture(positionTexture, uv).xy);
 }
 
 // first index whose block id is >= target (standard binary search lower_bound)
@@ -79,9 +81,8 @@ void main() {
             float y = float(i / texWidth);
             float x = float(i % texWidth);
             vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-            vec3 data = texture(positionTexture, uv).xyz;
 
-            vec2 particlePos = data.xy;
+            vec2 particlePos = texture(positionTexture, uv).xy;
             float influence = smoothing_kernel(RADIUS, distance(gl_FragCoord.xy, particlePos.xy));
             density += influence * MASS;
         }
@@ -90,5 +91,5 @@ void main() {
     // convert density to pressure
     // pressure = stiffness(density - target_density)
 
-    gl_FragColor = vec4(0,0,density, 1);
+    gl_FragColor = vec4(0,0,smoothstep(0.0, 2.0, density/refDense), 1);
 }
