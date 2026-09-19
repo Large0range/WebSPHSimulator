@@ -30,6 +30,9 @@ const stiffSlider = document.body.querySelector("#stiff");
 const targetDisplay = document.body.querySelector("#targetDisp");
 const targetSlider = document.body.querySelector("#target");
 
+const viscDisplay = document.body.querySelector("#viscDisp");
+const viscSlider = document.body.querySelector("#visc");
+
 
 //default setup for startup
 function setup(event) {
@@ -63,10 +66,14 @@ function setup(event) {
     stiffDisplay.innerHTML = "Stiff: " + event.target.value;
   })
 
+  viscSlider.addEventListener("input", (event) => {
+    viscDisplay.innerHTML = "Visc: " + event.target.value;
+  })
 
   targetSlider.addEventListener("input", (event) => {
     targetDisplay.innerHTML = "Target: " + event.target.value / 1000;
   })
+
 
   widthDisplay.innerHTML = "Width: " + widthSlider.value;
   heightDisplay.innerHTML = "Height: " + heightSlider.value;
@@ -74,6 +81,7 @@ function setup(event) {
   smoothDisplay.innerHTML = "Smooth: " + smoothSlider.value;
   massDisplay.innerHTML = "Mass: " + massSlider.value;
   stiffDisplay.innerHTML = "Stiff: " + stiffSlider.value;
+  viscDisplay.innerHTML = "Visc: " + viscSlider.value;
   targetDisplay.innerHTML = "Target: " + targetSlider.value / 1000;
 
   canvas.setAttribute("width", widthSlider.value);
@@ -90,7 +98,7 @@ function setup(event) {
     document.querySelector("#simulation").style.display = "";
     canvas.style.display = "none";
 
-    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(targetSlider.value / 1000));
+    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(viscSlider.value), Number(targetSlider.value / 1000));
   })
 }
 

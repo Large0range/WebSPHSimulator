@@ -7,6 +7,7 @@ uniform sampler2D densityTexture;
 //vector 1,1 is up and right
 uniform float RADIUS;
 uniform float STIFF;
+uniform float VISC_CONSTANT;
 uniform float MASS;
 uniform float TARGET_DENSITY;
 uniform float DELTA_TIME;
@@ -54,7 +55,7 @@ int lowerBound(float target) {
 }
 
 
-
+// Used for pressure force calculation
 vec2 spiky_kernel_gradient(float radius, vec2 r_vector) {
     float distance = length(r_vector);
 
@@ -69,6 +70,14 @@ float density_to_pressure(float density) {
     return STIFF * (density - TARGET_DENSITY);
 }
 
+// Used for viscosity force calculation
+float viscosity_kernel_laplacian(float radius, float r_mag) {
+    if (r_mag > radius || r_mag <= 0.0) return 0.0;
+
+    float coeff = 40.0 / (PI * pow(radius, 5.0));
+    return coeff * (radius - r_mag);
+}
+
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution.xy;
 
@@ -78,15 +87,18 @@ void main() {
     vec2 acceleration = vec2(0.0);
 
     vec2 pressure_force = vec2(0.0);
+    vec2 viscosity_force = vec2(0.0);
 
     float bx = floor(position.x / RADIUS); // get x block
     float by = floor(position.y / RADIUS); // get y block
 
 
     if (density == 0.0) {
-        gl_FragColor = vec4(position, 0, 1);
+        gl_FragColor = vec4(position, velocity);
         return;
     }
+
+    // Calculate the pressure force
 
     // walk the 3 rows above/current/below this block
     for (int dy = -1; dy <= 1; dy++) {
@@ -111,18 +123,25 @@ void main() {
             vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
             vec2 particlePos = texture(positionTexture, uv).xy;
 
-            float densityI = texture(densityTexture, uv).z;
-            if (densityI == 0.0) continue;
+
+            vec2 particleVelocity = texture(positionTexture, uv).zw;
+            float particleDensity = texture(densityTexture, uv).z;
+
+            vec2 visc_coeff = (particleVelocity - velocity) / particleDensity;
+            float visc = viscosity_kernel_laplacian(RADIUS, distance(position, particlePos));
+
+            viscosity_force += MASS * visc_coeff * visc;
+
+            if (particleDensity == 0.0) continue;
 
 
-            float pressure_density = (density_to_pressure(densityI) / pow(densityI, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
+
+            float pressure_density = (density_to_pressure(particleDensity) / pow(particleDensity, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
             vec2 gradient = spiky_kernel_gradient(RADIUS, position - particlePos);
             pressure_force += MASS * pressure_density * gradient;
         }
     }
 
-    // convert density to pressure
-    // pressure = stiffness(density - target_density)
 
     //position.xy += -pressure_force * DELTA_TIME;
     //position.y -= 1.0;
@@ -140,7 +159,8 @@ void main() {
     }
 
     acceleration += -pressure_force;
-    acceleration += vec2(0,-1);
+    acceleration += viscosity_force * VISC_CONSTANT;
+    //acceleration += vec2(0,-1) * density;
     velocity += acceleration * DELTA_TIME;
     position += velocity;
 

@@ -17,12 +17,12 @@ function roundToEven(x) {
   return c;
 }
 
-export function runSimulation(width, height, count, smoothingRadius, mass, stiffness_constant, target_density) {
+export function runSimulation(width, height, count, smoothingRadius, mass, stiffness_constant, viscosity_constant, target_density) {
   //count = 4;
 
 
 
-  const deltaTime = 0.008;// best
+  const deltaTime = 0.004;// best
   const refDensity = mass * count / (width * height);
 
 
@@ -155,6 +155,7 @@ export function runSimulation(width, height, count, smoothingRadius, mass, stiff
   physicsPosVar.material.uniforms.screenHeight = { value: height };
   physicsPosVar.material.uniforms.count = { value: particles.length };
   physicsPosVar.material.uniforms.STIFF = { value: stiffness_constant };
+  physicsPosVar.material.uniforms.VISC_CONSTANT = { value: viscosity_constant };
   physicsPosVar.material.uniforms.TARGET_DENSITY = { value: target_density * refDensity };
   physicsPosVar.material.uniforms.MASS = { value: mass };
   physicsPosVar.material.uniforms.RADIUS = { value: smoothingRadius };
