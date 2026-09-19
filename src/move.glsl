@@ -1,29 +1,32 @@
 #define PI 3.14159265359
-//#define MASS 500.0
-//#define RADIUS 40.0
 
+//auto injects positionTexture, densityTexture
+
+//vector 1,1 is up and right
 uniform float RADIUS;
+uniform float STIFF;
 uniform float MASS;
+uniform float TARGET_DENSITY;
 
+uniform int width;
+uniform int height;
 uniform int count;
-uniform int texWidth;
-uniform int texHeight;
-uniform int numBlocksX; // how many blocks span the domain in x — needed to flatten (bx,by) consistently
-uniform sampler2D positions;
+uniform int numBlocksX;
 
-// bx/by are the 2D block coords, flattened row-major
+
 float calculate_block(vec2 p) {
     float bx = floor(p.x / RADIUS);
     float by = floor(p.y / RADIUS);
     return bx + by * float(numBlocksX);
 }
 
+
 // get block from texture
 float readBlock(int i) {
-    float y = float(i / texWidth);
-    float x = float(i % texWidth);
-    vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-    return texture(positions, uv).z;
+    float y = float(i / width);
+    float x = float(i % width);
+    vec2 uv = (vec2(x, y) + 0.5) / vec2(width, height);
+    return texture(positionTexture, uv).z;
 }
 
 // first index whose block id is >= target (standard binary search lower_bound)
@@ -41,21 +44,9 @@ int lowerBound(float target) {
     return lo;
 }
 
-float smoothing_kernel(float radius, float distance) {
-    float volume = PI * pow(radius, 8.0) / 4.0;
-    float value = max(0.0, radius * radius - distance * distance);
-    return pow(value, 3.0) / volume;
-}
 
-float spiky_kernel(float radius, float distance) {
-    if (distance >= radius) return 0.0;
-    float volume = PI * pow(radius, 5.0) / 10.0;
-    float value = radius - distance;
-    return pow(value, 3.0) / volume;
-}
 
-//r vector is current particle - particle looking at
-vec2 spiky_kernel_gradient(vec2 r_vector, float radius) {
+vec2 spiky_kernel_gradient(float radius, vec2 r_vector) {
     float distance = length(r_vector);
 
     if (distance > radius || distance < 0.0) return vec2(0.0);
@@ -65,10 +56,20 @@ vec2 spiky_kernel_gradient(vec2 r_vector, float radius) {
     return scale * (value * value * unit_vector);
 }
 
-
+float density_to_pressure(float density) {
+    return STIFF * (density - TARGET_DENSITY);
+}
 
 void main() {
-    float density = 0.0;
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+
+    float density = texture(densityTexture, uv).z;
+    vec3 position = texture(positionTexture, uv).xyz;
+
+
+
+
+    vec2 pressure_force = vec2(0.0);
 
     float bx = floor(gl_FragCoord.x / RADIUS); // get x block
     float by = floor(gl_FragCoord.y / RADIUS); // get y block
@@ -91,19 +92,36 @@ void main() {
         int end = lowerBound(endBlockExclusive);
 
         for (int i = start; i < end; i++) {
-            float y = float(i / texWidth);
-            float x = float(i % texWidth);
-            vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-            vec3 data = texture(positions, uv).xyz;
+            float y = float(i / width);
+            float x = float(i % width);
+            vec2 uv = (vec2(x, y) + 0.5) / vec2(width, height);
+            vec3 data = texture(positionTexture, uv).xyz;
+
+            float densityI = texture(densityTexture, uv).z;
 
             vec2 particlePos = data.xy;
-            float influence = smoothing_kernel(RADIUS, distance(gl_FragCoord.xy, particlePos.xy));
-            density += influence * MASS;
+
+            float pressure_density = (density_to_pressure(densityI) / pow(densityI, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
+            vec2 gradient = spiky_kernel_gradient(RADIUS, gl_FragCoord.xy - particlePos.xy);
+            pressure_force += MASS * pressure_density * gradient;
         }
     }
 
     // convert density to pressure
     // pressure = stiffness(density - target_density)
 
-    gl_FragColor = vec4(0,0,density, 1);
+
+
+
+
+    //clamp positionings and recalculate the block
+    position.y = min(position.y, resolution.y);
+    position.y = max(position.y, 0.0);
+
+    position.x = min(position.x, resolution.x);
+    position.x = max(position.x, 0.0);
+
+    position.z = calculate_block(position.xy);
+
+    gl_FragColor = vec4(position, 0);
 }
