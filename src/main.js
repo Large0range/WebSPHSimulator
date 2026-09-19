@@ -71,7 +71,7 @@ function setup(event) {
   })
 
   targetSlider.addEventListener("input", (event) => {
-    targetDisplay.innerHTML = "Target: " + event.target.value / 1000;
+    targetDisplay.innerHTML = "Target: " + event.target.value / 100;
   })
 
 
@@ -82,7 +82,7 @@ function setup(event) {
   massDisplay.innerHTML = "Mass: " + massSlider.value;
   stiffDisplay.innerHTML = "Stiff: " + stiffSlider.value;
   viscDisplay.innerHTML = "Visc: " + viscSlider.value;
-  targetDisplay.innerHTML = "Target: " + targetSlider.value / 1000;
+  targetDisplay.innerHTML = "Target: " + targetSlider.value / 100;
 
   canvas.setAttribute("width", widthSlider.value);
   canvas.setAttribute("height", heightSlider.value);
@@ -98,7 +98,7 @@ function setup(event) {
     document.querySelector("#simulation").style.display = "";
     canvas.style.display = "none";
 
-    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(viscSlider.value), Number(targetSlider.value / 1000));
+    runSimulation(Number(widthSlider.value), Number(heightSlider.value), Math.pow(2, Number(countSlider.value)), Number(smoothSlider.value), Number(massSlider.value), Number(stiffSlider.value), Number(viscSlider.value), Number(targetSlider.value / 100));
   })
 }
 
