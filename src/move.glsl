@@ -1,179 +1,120 @@
 #define PI 3.14159265359
 
-//auto injects positionTexture, densityTexture
-uniform sampler2D positionTexture;
+uniform sampler2D positionTexture;   // sorted particles (xy = pos, zw = vel)
 uniform sampler2D densityTexture;
+uniform sampler2D cellStartTexture;
 
-//vector 1,1 is up and right
 uniform float RADIUS;
 uniform float STIFF;
 uniform float VISC_CONSTANT;
 uniform float MASS;
 uniform float TARGET_DENSITY;
 uniform float DELTA_TIME;
-uniform float GRAVITY;
+uniform float GRAVITY;          // px / s^2, downward
+
+uniform float MOUSE_RADIUS;
+uniform float MOUSE_STRENGTH;   // px / s^2 at the centre
+uniform float WALL_RESTITUTION;
 
 uniform int texWidth;
-uniform int texHeight;
-uniform int count;
 uniform int numBlocksX;
-
-uniform int screenWidth;
-uniform int screenHeight;
+uniform int numBlocksY;
+uniform float screenWidth;
+uniform float screenHeight;
 
 uniform vec2 mousePos;
 uniform bool mouseDown;
 
-
-float calculate_block(vec2 p) {
-    float bx = floor(p.x / RADIUS);
-    float by = floor(p.y / RADIUS);
-    return bx + by * float(numBlocksX);
-}
-
-
-// get block from texture
-float readBlock(int i) {
-    float y = float(i / texWidth);
-    float x = float(i % texWidth);
-    vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-    return calculate_block(texture(positionTexture, uv).xy);
-}
-
-// first index whose block id is >= target (standard binary search lower_bound)
-int lowerBound(float target) {
-    int lo = 0;
-    int hi = count;
-    while (lo < hi) {
-        int mid = (lo + hi) / 2;
-        if (readBlock(mid) < target) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    return lo;
-}
-
-
-// Used for pressure force calculation
-vec2 spiky_kernel_gradient(float radius, vec2 r_vector) {
-    float distance = length(r_vector);
-
-    if (distance > radius || distance == 0.0) return vec2(0.0);
-    float value = radius - distance;
-    vec2 unit_vector = r_vector / distance;
-    float scale = -10.0 / (PI * pow(radius, 5.0));
-    return scale * (value * value * unit_vector);
-}
-
-float density_to_pressure(float density) {
-    return STIFF * (density - TARGET_DENSITY);
-}
-
-// Used for viscosity force calculation
-float viscosity_kernel_laplacian(float radius, float r_mag) {
-    if (r_mag > radius || r_mag <= 0.0) return 0.0;
-
-    float coeff = 40.0 / (PI * pow(radius, 5.0));
-    return coeff * (radius - r_mag);
+float pressureOf(float density) {
+    // clamped: no negative pressure, avoids tensile clumping
+    return STIFF * max(density - TARGET_DENSITY, 0.0);
 }
 
 void main() {
-    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    ivec2 texel = ivec2(gl_FragCoord.xy);
+    int myIndex = texel.x + texel.y * texWidth;
 
-    float density = texture(densityTexture, uv).z;
-    vec2 position = texture(positionTexture, uv).xy;
-    vec2 velocity = texture(positionTexture, uv).zw;
-    vec2 acceleration = vec2(0.0);
+    vec4 self = texelFetch(positionTexture, texel, 0);
+    vec2 position = self.xy;
+    vec2 velocity = self.zw;
 
-    vec2 pressure_force = vec2(0.0);
-    vec2 viscosity_force = vec2(0.0);
+    float rho = texelFetch(densityTexture, texel, 0).x;
+    float pOverRho2 = pressureOf(rho) / (rho * rho);
 
-    float bx = floor(position.x / RADIUS); // get x block
-    float by = floor(position.y / RADIUS); // get y block
+    float spikyGrad = 30.0 / (PI * pow(RADIUS, 5.0)); // |grad| of 2D spiky kernel = spikyGrad * (h-r)^2
+    float viscLap   = 40.0 / (PI * pow(RADIUS, 5.0)); // laplacian of 2D viscosity kernel = viscLap * (h-r)
 
+    vec2 pressureAccel = vec2(0.0);
+    vec2 viscAccel = vec2(0.0);
 
-    if (density == 0.0) {
-        gl_FragColor = vec4(position, velocity);
-        return;
-    }
+    ivec2 cell = clamp(ivec2(floor(position / RADIUS)), ivec2(0), ivec2(numBlocksX - 1, numBlocksY - 1));
 
-    // Calculate the pressure force
-
-    // walk the 3 rows above/current/below this block
     for (int dy = -1; dy <= 1; dy++) {
-        float rowY = by + float(dy);
-        if (rowY < 0.0) continue; // clamps edges
+        int cy = cell.y + dy;
+        if (cy < 0 || cy >= numBlocksY) continue;
 
-        float rowBase = rowY * float(numBlocksX);
+        int xLo = max(cell.x - 1, 0);
+        int xHi = min(cell.x + 1, numBlocksX - 1);
 
-        float xLo = max(bx - 1.0, 0.0);
-        float xHi = min(bx + 1.0, float(numBlocksX - 1));
-        if (xLo > xHi) continue; // clamps edges
-
-        float startBlock = rowBase + xLo;
-        float endBlockExclusive = rowBase + xHi + 1.0; // one past the last block we want
-
-        int start = lowerBound(startBlock);
-        int end = lowerBound(endBlockExclusive);
+        int start = int(texelFetch(cellStartTexture, ivec2(xLo, cy), 0).x);
+        int end   = int(texelFetch(cellStartTexture, ivec2(xHi + 1, cy), 0).x);
 
         for (int i = start; i < end; i++) {
-            float y = float(i / texWidth);
-            float x = float(i % texWidth);
-            vec2 uv = (vec2(x, y) + 0.5) / vec2(texWidth, texHeight);
-            vec2 particlePos = texture(positionTexture, uv).xy;
+            if (i == myIndex) continue;
 
+            ivec2 t = ivec2(i % texWidth, i / texWidth);
+            vec4 other = texelFetch(positionTexture, t, 0);
+            float rhoJ = texelFetch(densityTexture, t, 0).x;
 
-            vec2 particleVelocity = texture(positionTexture, uv).zw;
-            float particleDensity = texture(densityTexture, uv).z;
+            vec2 rij = position - other.xy;
+            float r = length(rij);
+            if (r >= RADIUS || r < 1e-5) continue;
 
-            vec2 visc_coeff = (particleVelocity - velocity) / particleDensity;
-            float visc = viscosity_kernel_laplacian(RADIUS, distance(position, particlePos));
+            vec2 dir = rij / r;
+            float w = RADIUS - r;
 
-            viscosity_force += MASS * visc_coeff * visc;
+            // symmetric pressure term; pushes i away from j when P > 0
+            float shared = pOverRho2 + pressureOf(rhoJ) / (rhoJ * rhoJ);
+            pressureAccel += MASS * shared * spikyGrad * w * w * dir;
 
-            if (particleDensity == 0.0) continue;
-
-
-
-            float pressure_density = (density_to_pressure(particleDensity) / pow(particleDensity, 2.0)) + (density_to_pressure(density) / pow(density, 2.0));
-            vec2 gradient = spiky_kernel_gradient(RADIUS, position - particlePos);
-            pressure_force += MASS * pressure_density * gradient;
+            // viscosity: smooth velocity toward neighbours' velocity
+            viscAccel += MASS * (other.zw - velocity) / rhoJ * viscLap * w;
         }
     }
 
+    vec2 acceleration = pressureAccel + viscAccel * (VISC_CONSTANT / rho);
+    acceleration += vec2(0.0, -GRAVITY);
 
-    //position.xy += -pressure_force * DELTA_TIME;
-    //position.y -= 1.0;
     if (mouseDown) {
-        float mouseRadius = 50.0;
-        float mouseStrength = 500.0;
-
         vec2 delta = position - mousePos;
         float d = length(delta);
-
-        if (d < mouseRadius && d > 0.0001) {
-            float falloff = 1.0 - d / mouseRadius;
-            acceleration += (delta / d) * mouseStrength * falloff * falloff;
+        if (d < MOUSE_RADIUS && d > 1e-4) {
+            float falloff = 1.0 - d / MOUSE_RADIUS;
+            acceleration += (delta / d) * MOUSE_STRENGTH * falloff * falloff;
         }
     }
 
-    acceleration += -pressure_force;
-    acceleration += viscosity_force * VISC_CONSTANT;
-    acceleration += vec2(0,-1) * density * GRAVITY;
-    velocity += acceleration;
+    // semi-implicit Euler
+    velocity += acceleration * DELTA_TIME;
+
+    // CFL-style safety: never move more than half a kernel radius per step
+    float vMax = 0.5 * RADIUS / DELTA_TIME;
+    float speed = length(velocity);
+    if (speed > vMax) velocity *= vMax / speed;
+
     position += velocity * DELTA_TIME;
 
+    // walls: clamp and reflect (with damping) the normal velocity component
+    if (position.x < 0.0)               { position.x = 0.0;          velocity.x =  abs(velocity.x) * WALL_RESTITUTION; }
+    else if (position.x > screenWidth)  { position.x = screenWidth;  velocity.x = -abs(velocity.x) * WALL_RESTITUTION; }
+    if (position.y < 0.0)               { position.y = 0.0;          velocity.y =  abs(velocity.y) * WALL_RESTITUTION; }
+    else if (position.y > screenHeight) { position.y = screenHeight; velocity.y = -abs(velocity.y) * WALL_RESTITUTION; }
 
-    //clamp positionings and recalculate the block
-    position.y = min(position.y, float(screenHeight));
-    position.y = max(position.y, 0.0);
-
-    position.x = min(position.x, float(screenWidth));
-    position.x = max(position.x, 0.0);
-
-    //position.z = calculate_block(position.xy);
+    // a NaN would poison the sort, so respawn it
+    if (any(isnan(position)) || any(isnan(velocity))) {
+        position = vec2(screenWidth, screenHeight) * 0.5;
+        velocity = vec2(0.0);
+    }
 
     gl_FragColor = vec4(position, velocity);
 }

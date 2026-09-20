@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>CPU Sim</title>
+    <title>Fluid Sim</title>
     <style>
       body { margin: 0; }
     </style>
@@ -12,23 +12,23 @@
           <h1 style="text-align: center;color: white">Values</h1>
           <div class="slidecontainer">
             <span class="slider-header" id="widthDisp">Width: </span>
-            <input type="range" step="4" min="800" max="1280" value="400" class="slider" id="width">
+            <input type="range" step="4" min="800" max="1280" value="800" class="slider" id="width">
             <span class="slider-header" id="heightDisp">Height: </span>
-            <input type="range" step="3" min="600" max="960" value="300" class="slider" id="height">
+            <input type="range" step="3" min="600" max="960" value="600" class="slider" id="height">
             <span class="slider-header" id="countDisp">Particle Count: </span>
-            <input type="range" min="2" max="20" value="12" class="slider" id="count">
+            <input type="range" min="8" max="16" value="12" class="slider" id="count">
             <span class="slider-header" id="smoothDisp">Smooth: </span>
-            <input type="range" min="1" max="100" value="25" class="slider" id="smooth">
+            <input type="range" min="10" max="60" value="25" class="slider" id="smooth">
             <span class="slider-header" id="massDisp">Mass: </span>
             <input type="range" min="1" max="100" value="40" class="slider" id="mass">
             <span class="slider-header" id="stiffDisp">Stiff: </span>
-            <input type="range" min="0.0" max="1000" value="500" class="slider" id="stiff">
+            <input type="range" min="50" max="600" value="500" class="slider" id="stiff">
             <span class="slider-header" id="viscDisp">Visc: </span>
-            <input type="range" min="0.0" max="100" value="100" class="slider" id="visc">
+            <input type="range" min="0" max="100" value="20" class="slider" id="visc">
             <span class="slider-header" id="targetDisp">Target: </span>
-            <input type="range" min="0" max="1000" value="500" class="slider" id="target">
+            <input type="range" min="50" max="300" value="100" class="slider" id="target">
             <span class="slider-header" id="gravDisp">Gravity: </span>
-            <input type="range" min="0" max="100" value="1" class="slider" id="grav">
+            <input type="range" min="0" max="100" value="30" class="slider" id="grav">
             <button id="run-button">Run</button>
             <button id="stop-button">Stop</button>
           </div>
@@ -38,7 +38,5 @@
           <canvas id="simulation" style="display: none;"></canvas>
       </div>
     <script type="module" src="/main.js"></script>
-    <script type="module" src="/particle.js"></script>
-    <script type="module" src="/simulation.js"></script>
   </body>
 </html>
